@@ -1,0 +1,9 @@
+1. mailserver
+# semanage boolean -l | grep httpd
+# setsebool -P httpd_can_network_connect on
+
+# chcon -R -t httpd_sys_content_rw_t /usr/share/nginx/html/postfixadmin/templates_c
+
+2. rsync server
+# semanage boolean -l | grep rsync
+# setsebool -P rsync_full_access on
