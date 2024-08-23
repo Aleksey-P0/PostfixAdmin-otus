@@ -1,0 +1,15 @@
+---
+# defaults file for postfixadmin-role---
+
+# System
+nameserver: 'mailserver.truba.loc'
+
+# MariaDB
+mariadb_root_password: 'Qwerty123#'
+
+# PostfixAdmin
+path_download_postfixadmin: '/root'
+postfixadmin_database_name: 'postfix'
+postfixadmin_database_username: 'postfixadmin'
+postfixadmin_database_username_password: 'Qwerty123#'
+dir_postfixadmin: '/usr/share/nginx/html/postfixadmin'

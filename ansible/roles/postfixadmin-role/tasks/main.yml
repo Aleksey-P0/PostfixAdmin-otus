@@ -1,0 +1,174 @@
+---
+# tasks file for postfixadmin-role---
+
+- name: Set hostname
+  hostname:
+    name: '{{nameserver}}'
+    use: systemd
+
+- name: Install wget
+  dnf:
+    name: wget
+    state: latest
+
+#- name: Disable SELinux
+#  selinux:
+#    state: "disabled"
+
+- name: Set SELinux in Permissive
+  command:
+    cmd: setenforce 0
+  when:
+    - ansible_selinux.status == "enabled"
+
+- name: Install nginx
+  dnf:
+    name: nginx
+    state: latest
+
+- name: Started and Enabled nginx
+  service:
+    name: nginx
+    enabled: true
+    state: started
+
+- name: Install php and php-fpm
+  dnf:
+    name: php
+    state: present
+
+- name: Copy nginx.conf
+  copy:
+    src: nginx.conf
+    dest: /etc/nginx/nginx.conf
+  notify:
+    - Started and Enabled php-fpm
+    - Restarted nginx
+
+- name: Install MariaDB
+  dnf:
+    name:
+      - mariadb-server
+      - mariadb
+      - python3-PyMySQL
+    state: latest
+
+- name: Started and Enabled MariaDB
+  service:
+    name: mariadb
+    enabled: true
+    state: started
+
+- name: Configure root password MariaDB
+  no_log: false
+  mysql_user:
+    login_user: "root"
+    login_password: "{{ mariadb_root_password }}"
+    login_unix_socket: /var/lib/mysql/mysql.sock
+    name: "root"
+    password: "{{ mariadb_root_password }}"
+
+- name: Installing php-components
+  dnf:
+    name:
+      - php-mysqli
+      - php-mbstring
+      - php-imap
+    state: latest
+  notify:
+    - Restarted php-fpm
+
+- name: Download PostifAdmin
+  shell: |
+   cd '{{ path_download_postfixadmin }}'
+   wget https://sourceforge.net/projects/postfixadmin/files/latest/download/postfixadmin.tar.gz
+
+- name: Creating a directory for postfixadmin
+  file:
+    path: '{{ dir_postfixadmin }}'
+    state: directory
+
+- name: Unpacking archive PostfixAdmin
+  command:
+    cmd: tar --directory='{{ dir_postfixadmin }}' -xvf postfixadmin.tar.gz --strip-components 1
+    chdir: '{{ path_download_postfixadmin }}'
+    creates: '{{ dir_postfixadmin }}/templates_c'
+
+- name: Creating the "templates_c" directory
+  file:
+    path: '{{ dir_postfixadmin }}/templates_c'
+    state: directory
+
+- name: Setting the rights to the directory
+  file:
+    path: '{{ dir_postfixadmin }}'
+    state: directory
+    recurse: yes
+    owner: apache
+    group: apache
+
+- name: Creating a postfix database
+  community.mysql.mysql_db:
+    name: "{{ postfixadmin_database_name }}"
+    encoding: utf8
+    collation: utf8_bin
+    login_user: root
+    login_password: "{{ mariadb_root_password }}"
+  failed_when: false
+
+- name: Create username database for postfixadmin
+  community.mysql.mysql_user:
+    name: "{{ postfixadmin_database_username }}"
+    password: "{{ postfixadmin_database_username_password }}"
+    priv: '*.*:ALL,GRANT'
+    host: '%'
+    state: present
+    login_user: root
+    login_password: "{{ mariadb_root_password }}"
+
+- name: Copy postfixadmin configuration file
+  template:
+    src: config.local.php.j2
+    dest: '{{ dir_postfixadmin }}/config.local.php'
+
+- name: Install FirewallD
+  dnf:
+    name: firewalld
+    state: latest
+
+- name: Started FirewallD
+  service:
+    name: firewalld
+    enabled: true
+    state: started
+
+- name: Configure firewalld
+  firewalld:
+    service: "{{ item }}"
+    state: enabled
+    permanent: true
+    immediate: true
+  with_items:
+    - http
+    - https
+    - gre
+  notify:
+    - Restarted Firewalld
+
+#- name: Configure rule firewalld
+#  firewalld:
+#    port: '{{ item }}'
+#    permanent: yes
+#    state: enabled
+#  loop:
+#    - 25/tcp
+#    - 110/tcp
+#    - 143/tcp
+#    - 443/tcp
+#    - 443/tcp
+#    - 465/tcp
+#    - 587/tcp
+#    - 993/tcp
+#    - 995/tcp
+#  notify:
+#    - Restarted Firewalld

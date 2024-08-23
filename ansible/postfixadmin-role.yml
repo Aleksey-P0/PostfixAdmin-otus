@@ -1,0 +1,7 @@
+---
+- name: Install PostfixAdmin
+  hosts: all
+  become: true
+  
+  roles:
+    - postfixadmin-role
